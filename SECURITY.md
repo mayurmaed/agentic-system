@@ -1,0 +1,29 @@
+# Security Policy
+
+## Supported versions
+
+This is a template repository and does not publish versioned releases. Security fixes are supported on the latest `main` branch. If you are using a fork or an installed copy, compare it with the current repository before reporting or applying a fix.
+
+## Reporting a vulnerability
+
+Please use GitHub private vulnerability reporting: open this repository's **Security** tab and choose **Report a vulnerability**. Include the affected script or prompt, a minimal reproduction, and the potential impact. Do not open a public issue for a suspected vulnerability.
+
+If private reporting is unavailable, contact the single maintainer through GitHub rather than posting exploit details publicly.
+
+## Security model / operational risks
+
+This project deliberately automates development work. Its safety gates reduce risk but do not make unattended execution safe by default.
+
+- The shared runner reads `~/.codex/secrets/github.env` and exports its contents so `git` and `gh` can authenticate. `onboard-autodev.sh` requires `GH_TOKEN` (or `GITHUB_TOKEN`) that can reach and push to the target remote; `scripts/pending-issue-sync.sh` also sources the same file to create, edit, and read GitHub Issues. Treat this file as a secret with repository write capability.
+- `scripts/autodev-runner.sh` prepares `$HOME/.codex/automations/autodev-<slug>/repo` by checking out the base branch, then runs `git reset --hard origin/<base>` and `git clean -fdq`. Those commands remove uncommitted and untracked content in that runner-owned clone. A mistaken state directory, symlink, or manual invocation aimed at a valued checkout can cause data loss.
+- `onboard-autodev.sh` installs a crontab entry that invokes the runner on a schedule — by default twice each hour (every 30 minutes), configurable at onboarding with `--every <minutes>`. The runner gives Codex a writable clone and instructs it to cut branches, commit, push, and open pull requests. These actions can occur without a person present; the template never auto-merges, but it can still create remote branches, commits, pull requests, and GitHub Issue updates.
+- Push enforcement is the `AGENTIC_GREEN` marker: a push is blocked unless the marker matches `HEAD`. It is checked at two independent points — `install.sh` registers a Claude `PreToolUse` push-gate hook in `~/.claude/settings.json` (Claude track), and `scripts/install-git-prepush.sh` writes a tool-agnostic git `pre-push` hook into a target repository's `.git/hooks` (covers Codex, manual, and cron pushes alike). The git hook is a local, client-side tripwire — it stops accidental ungated pushes but can be bypassed deliberately (`git push --no-verify`); for a hard server-side block, use GitHub branch protection / required status checks. These hooks affect commands outside this template checkout. The runner installs this git hook into its own ephemeral clone on first run (it persists there because `git reset --hard`/`clean` never touch `.git/hooks`), so autonomous pushes are covered by the same mechanical gate — subject to the client-side caveat above.
+- The pipeline executes AI-agent-generated code and shell commands. Prompts, ticket text, repository content, and tool output can influence that execution. Review the instructions and the target repository's trust boundary before enabling unattended runs.
+
+## Hardening guidance
+
+- Use a separate, least-privilege GitHub token for `~/.codex/secrets/github.env`. Grant only the repository access and permissions needed to push branches and open pull requests; do not reuse a broadly privileged personal token. Restrict the file to its owner, and rotate or revoke the token when an automation host is retired.
+- Let the runner use only its dedicated clone under `~/.codex/automations/autodev-<slug>/repo`. Do not manually point `scripts/autodev-runner.sh` at a development checkout, and do not store irreplaceable work in the runner state directory.
+- After running `./onboard-autodev.sh`, inspect `crontab -l` and the generated `# autodev:<slug>` entry. Confirm the repository URL, slug, base branch, cadence, and optional hook are correct. Remove an automation with the uninstall command documented in the README before deleting its state.
+- Review installed hook registrations in `~/.claude/settings.json` and any target repository's `.git/hooks/pre-push`. Test a manual, non-critical target first and keep protected-branch rules enabled on hosted repositories.
+- Keep prompts and installed scripts current, inspect `RUN_LOG.md` and `last-message.md` under the automation state directory, and disable cron before investigating unexpected behavior.

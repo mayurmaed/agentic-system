@@ -1,0 +1,16 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # CI only lints: the installed scripts themselves depend on macOS utilities.
+      - name: ShellCheck shell scripts
+        run: shellcheck --severity=warning $(find . -type f -name '*.sh' -not -path './.git/*' -print)
+      - name: Compile Python sources
+        run: python3 -m py_compile $(find . -type f -name '*.py' -not -path './.git/*' -print)

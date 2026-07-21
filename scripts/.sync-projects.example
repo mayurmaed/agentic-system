@@ -1,0 +1,8 @@
+# pending-issue-sync.sh reads project mappings from ~/.claude/decisions/.sync-projects
+# (NOT from this file — copy this to that path and edit it for your machine).
+# One "slug:owner/repo" per line. slug must match a ~/.claude/decisions/<slug>.md file.
+# "#" comments and blank lines are ignored.
+#
+# example:
+# myproject:yourname/myproject
+# another-app:yourname/another-app
