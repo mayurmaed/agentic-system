@@ -14,7 +14,7 @@ Checklist — do all of these, in order:
    - `small` — one file / isolated fix → functional review will be diff-only.
    - `large-simple` — many files but mechanical/low-risk → functional review will be diff + reasoning.
    - `large-complex` — cross-cutting, shared code paths, or wide regression surface → functional review must run the affected flow + regression tests.
-4. Flag approval triggers. If the task touches ANY of: DB migrations/schema/RLS, destructive git or file deletion, deploy/prod config (render.yaml, workflows, env vars) — mark `NEEDS-MAYUR-APPROVAL: <which>` at the top of your output.
+4. Flag approval triggers. If the task touches ANY of: DB migrations/schema/RLS, destructive git or file deletion, deploy/prod config (render.yaml, workflows, env vars) — mark `NEEDS-OWNER-APPROVAL: <which>` at the top of your output.
 5. Write acceptance criteria per stage. Each criterion must be observable (a command + expected result, or a file + expected content). Sections: `Developer criteria`, `Tester criteria`, `Code review criteria`, `Functional criteria`.
 6. Note risks and what must NOT change (regression guardrails).
 

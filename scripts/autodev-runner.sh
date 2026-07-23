@@ -40,7 +40,7 @@ fi
 trap 'rmdir "$LOCK" 2>/dev/null' EXIT
 
 # Rotate to a timestamped backup instead of clobbering a previous rotation.
-[ -f "$LOG" ] && [ "$(stat -f%z "$LOG" 2>/dev/null || echo 0)" -gt 500000 ] && mv "$LOG" "$LOG.bak.$(date +%Y%m%d%H%M%S)"
+[ -f "$LOG" ] && [ "$(stat -f%z "$LOG" 2>/dev/null || stat -c%s "$LOG" 2>/dev/null || echo 0)" -gt 500000 ] && mv "$LOG" "$LOG.bak.$(date +%Y%m%d%H%M%S)"
 # Keep one previous run's output rather than silently overwriting it.
 [ -f "$STATE/last-message.md" ] && mv "$STATE/last-message.md" "$STATE/last-message.prev.md"
 

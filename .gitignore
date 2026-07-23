@@ -6,3 +6,4 @@ dashboard/index.html
 .env.*
 *.log
 AGENTS.md
+.plandb.db
