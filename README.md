@@ -174,7 +174,7 @@ The system also runs standalone on the Codex CLI / ChatGPT app:
 ./install-codex.sh
 ```
 
-That stamps the Codex-track instructions (`codex/AGENTS.agentic.md`) as a marked block into `~/.codex/AGENTS.md` and installs `/autodev`, `/autodev-cron`, `/ticket`, `/task` as Codex custom prompts (`~/.codex/prompts/`). Same loop, pipeline, tracker chain, personas, and decision log (shared `~/.claude/decisions/` so both tracks see one queue on dual machines). Tier delegation happens via `codex exec -m <model>` subprocesses; code review runs in a fresh `codex exec`/`codex review` context for independence. Codex ≥ 0.144 does have tool-call hooks (`PreToolUse` can deny a command), but in headless `codex exec` they need persisted trust and only cover Codex's own pushes — so the mechanical push gate is the tool-agnostic git `pre-push` hook, which also catches manual and cron pushes. Install it per repo:
+That stamps the Codex-track instructions (`codex/AGENTS.agentic.md`) as a marked block into `~/.codex/AGENTS.md` and installs `/autodev`, `/autodev-cron`, `/ticket`, `/task` as Codex custom prompts (`~/.codex/prompts/`). Same loop, pipeline, tracker chain, personas, and decision log (shared `~/.claude/decisions/` so both tracks see one queue on dual machines). Tier delegation happens via `codex exec -m <model>` subprocesses; code review runs in a fresh `codex exec`/`codex review` context for independence. On Codex ≥ 0.144, `install-codex.sh` also registers and trusts a native `PreToolUse` push-gate hook (`~/.codex/hooks.json` + a `trusted_hash` in `~/.codex/config.toml`) as an **optional, additive** early-warning layer for interactive Codex sessions — it's skipped automatically if Codex is absent or older. Because that hook only covers Codex's own pushes, the universal mechanical gate remains the tool-agnostic git `pre-push` hook, which also catches manual and cron pushes. Install it per repo:
 
 ```bash
 scripts/install-git-prepush.sh /path/to/repo
@@ -185,7 +185,7 @@ It blocks any push (Codex, Claude, or manual) whose HEAD lacks the `AGENTIC_GREE
 ## Install / update (per machine)
 
 ```bash
-git clone <this-repo> && cd agentic-system-template
+git clone <this-repo> && cd agentic-system
 ./install.sh
 ```
 
@@ -226,7 +226,7 @@ Decision logs (`~/.claude/decisions/`) are per-machine working data and intentio
 
 ## Uninstall
 
-Everything the installers add, and how to remove it:
+Run `./uninstall.sh` to reverse both installers automatically — it removes the installed files, strips the marked blocks from `~/.claude/CLAUDE.md` and `~/.codex/AGENTS.md`, and de-registers the Claude hooks (`~/.claude/settings.json`) and the native Codex hook + its trust state (`~/.codex/hooks.json` / `config.toml`), preserving all unrelated entries and your `~/.claude/decisions/` data. Scope it with `--claude` or `--codex`, and add `--yes`/`-y` to skip the prompt. Per-repo git hooks and crontab entries are left untouched (it prints reminders). The manual steps below remain as reference:
 
 **`install.sh` (Claude track):**
 - Delete the installed files: `rm ~/.claude/agents/pipeline-*.md ~/.claude/agents/decision-advisor.md ~/.claude/commands/{autodev,autodev-cron,ticket,task}.md ~/.claude/hooks/agentic-*` (and any `~/.claude/rules/*.md` it installed).
@@ -235,8 +235,9 @@ Everything the installers add, and how to remove it:
 - Timestamped backups (`*.bak.<timestamp>`) of anything the installer overwrote sit next to the originals — restore or delete as you like.
 
 **`install-codex.sh` (Codex track):**
-- `rm ~/.codex/prompts/{autodev,autodev-cron,ticket,task}.md ~/.codex/automations/autodev-runner.sh ~/.codex/automations/pending-issue-sync.sh`
+- `rm ~/.codex/prompts/{autodev,autodev-cron,ticket,task}.md ~/.codex/automations/{autodev-runner,install-git-prepush,pending-issue-sync}.sh ~/.codex/hooks/agentic-push-gate.{sh,py}`
 - Remove the agentic block (same start/end markers) from `~/.codex/AGENTS.md`.
+- Remove the owned `PreToolUse` handler (its `statusMessage` is `Checking AGENTIC_GREEN push gate`) from `~/.codex/hooks.json`, and its matching `[hooks.state."…:pre_tool_use:<group>:0"]` table (with `trusted_hash`) from `~/.codex/config.toml` — leaving all other hooks and trust tables intact.
 
 **`onboard-autodev.sh` (per project):**
 - Remove the crontab line: `crontab -l | grep -v '# autodev:<slug>' | crontab -`

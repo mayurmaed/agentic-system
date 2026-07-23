@@ -30,7 +30,10 @@ if [ ! -f "$PROJECTS_FILE" ]; then
   exit 0
 fi
 # slug:repo pairs, "#" comments and blank lines skipped.
-mapfile -t PROJECTS < <(grep -vE '^\s*(#|$)' "$PROJECTS_FILE")
+PROJECTS=()
+while IFS= read -r line; do
+  PROJECTS+=("$line")
+done < <(grep -vE '^\s*(#|$)' "$PROJECTS_FILE")
 
 # Extract the Pending Decisions table rows (only real rows: those starting with a date).
 pending_rows() { awk '
