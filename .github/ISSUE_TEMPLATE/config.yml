@@ -1,8 +1,8 @@
 blank_issues_enabled: false
 contact_links:
   - name: GitHub Discussions
-    url: https://github.com/mayurmaed/agentic-system-template/discussions
+    url: https://github.com/mayurmaed/agentic-system/discussions
     about: Ask questions about setup, workflow design, or using the template.
   - name: Report a security vulnerability
-    url: https://github.com/mayurmaed/agentic-system-template/security/advisories/new
+    url: https://github.com/mayurmaed/agentic-system/security/advisories/new
     about: Use private vulnerability reporting for security-sensitive issues.

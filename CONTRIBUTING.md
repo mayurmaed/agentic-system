@@ -7,8 +7,8 @@ Thanks for improving the agentic-system template. This repository contains the s
 Prerequisites are macOS, Python 3, the GitHub CLI (`gh`), and at least one of Claude Code or the Codex CLI — the system runs on either alone, or both together (the dual-track setup additionally uses Claude's Codex connector plugin). Clone the repository, then install the Claude track:
 
 ```bash
-git clone https://github.com/mayurmaed/agentic-system-template.git
-cd agentic-system-template
+git clone https://github.com/mayurmaed/agentic-system.git
+cd agentic-system
 ./install.sh
 ```
 
