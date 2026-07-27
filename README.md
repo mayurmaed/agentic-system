@@ -126,11 +126,30 @@ One command schedules any project — no bespoke wrapper, clone, or token:
 
 `--every` sets the cadence (default `30`, i.e. twice an hour). It must divide 60 (`5`, `10`, `15`, `20`, `30`, `60`) or be a multiple of it (`120`, `240`, `1440`); anything else is rejected rather than silently producing an irregular schedule. Omit it and you'll be prompted. The minute-offset staggers projects so they don't all fire at once — valid range is `0` to one less than the interval.
 
-It adds a single crontab line calling the ONE shared runner (`~/.codex/automations/autodev-runner.sh`, installed by `install-codex.sh`). The runner works in its own git worktree — always reset clean at origin's default tip, so it never collides with a dirty dev checkout — authenticates via the shared `~/.codex/secrets/github.env` token, holds a lock so ticks never overlap, and kills any run exceeding a 100-min watchdog. It runs the `/autodev-cron` prompt (resume-first, one item per tick) and notifies you when PRs await merge.
+It adds a single crontab line calling the ONE shared runner (`~/.codex/automations/autodev-runner.sh`, installed by `install-codex.sh`). The runner works in its own dedicated clone — always reset clean at origin's base-branch tip, so it never collides with a dirty dev checkout — authenticates via the shared `~/.codex/secrets/github.env` token, holds a lock so ticks never overlap, and kills any run exceeding a 100-min watchdog (TERM to the whole process group, then KILL after a grace period). It runs the `/autodev-cron` prompt (resume-first, one item per tick) and notifies you when PRs await merge or when a run's diff adds a database migration that still needs a manual production apply.
 
 **Custom scope per project:** drop a `~/.codex/automations/autodev-<slug>/prompt.md` and the runner uses it instead of the generic `/autodev-cron` (e.g. a hard ticket allowlist when several projects share one repo). **Base branch:** every repo targets a `staging` integration branch — onboarding creates `staging` from the default branch if it doesn't exist yet. PRs **never** target `main`; promoting `staging`→`main` is the owner's deliberate call. Override with `--base`.
 
 **Hard rule (baked into both tracks): never author a per-project autopilot script, clone, or token file.** That path rots and needs triage; the shared runner is the only sanctioned mechanism. If it lacks something, extend the one runner. Prerequisite: `~/.codex/secrets/github.env` containing `GH_TOKEN=<token that can push>` (cron can't read the macOS keychain).
+
+### Codex quota exhaustion
+
+Codex can exhaust its usage quota for hours or days. **By default nothing happens and nothing is asked of you:** a capped tick writes one line to that lane's log and exits. The next tick after the quota resets picks up normally. There is no state to clear and no notification to dismiss.
+
+> [!IMPORTANT]
+> **The Claude-track fallback is OFF by default, and turning it on has real consequences. Read this before you enable it.**
+>
+> You can opt in to having capped runs continue on the Claude CLI instead of no-opping:
+>
+> ```bash
+> touch ~/.codex/automations/claude-fallback-approved
+> ```
+>
+> **What you are agreeing to.** The fallback invokes `claude -p --dangerously-skip-permissions`. That is an unattended agent that writes code, commits, pushes, and opens PRs with **no per-action approval prompt**. It is the same authority the Codex path already has — but it spends a *different* budget, and it bypasses Claude's per-directory trust gate. Enable it only on a machine you own, for repos you own, and only with branch protection on your default branch. Installing this template never enables it; the flag file does not exist until you create it.
+>
+> **Scope and lifetime.** The flag is global — one approval covers every lane on the machine. The runner **deletes it automatically** on the first tick where Codex is healthy again, so the opt-in cannot silently outlive the outage. You get a "Codex recovered" notification when that happens. To re-enable it during a later outage, `touch` it again. To make sure it can never fire even if the flag exists, set `AUTODEV_NO_FALLBACK=1` in the environment.
+
+**Design note — why capped ticks are silent.** An earlier version fired a macOS notification asking for fallback approval. Its once-per-outage dedup marker was cleared by any lane that ran clean, so on a machine with several lanes and a partially-exhausted quota it re-asked every few minutes for an approval the owner did not want. An alert that fires repeatedly and needs no action trains you to ignore all alerts, including the two that do matter (PR awaiting merge, migration pending). Capped ticks now log and stay quiet.
 
 ## The other entry points
 
