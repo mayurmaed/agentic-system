@@ -93,6 +93,7 @@ for path in \
   "$TEST_CLAUDE_DIR/hooks/agentic-push-gate.py" \
   "$TEST_CLAUDE_DIR/rules/jira.md" \
   "$TEST_CLAUDE_DIR/rules/plandb.md" \
+  "$TEST_CLAUDE_DIR/rules/output-first.md" \
   "$TEST_CODEX_DIR/prompts/autodev.md" \
   "$TEST_CODEX_DIR/prompts/autodev-cron.md" \
   "$TEST_CODEX_DIR/prompts/ticket.md" \

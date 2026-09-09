@@ -290,7 +290,8 @@ if [ "$CLAUDE" = 1 ]; then
     "$CLAUDE_DIR/hooks/agentic-push-gate.sh" \
     "$CLAUDE_DIR/hooks/agentic-push-gate.py" \
     "$CLAUDE_DIR/rules/jira.md" \
-    "$CLAUDE_DIR/rules/plandb.md"
+    "$CLAUDE_DIR/rules/plandb.md" \
+    "$CLAUDE_DIR/rules/output-first.md"
   do
     remove_file "$path"
   done
