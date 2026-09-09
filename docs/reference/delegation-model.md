@@ -33,6 +33,19 @@ Map each tier to the current model available in your installation.
 | Terra | `medium` | Normal implementation, tests, ordinary debugging, multi-file exploration | Problems already shown to exceed its reasoning depth |
 | Sol | `high` | Cross-subsystem diagnosis, architecture, concurrency, security, difficult correctness work | Routine work that Luna or Terra can verify cheaply |
 
+Two consequences follow from tiers being roles rather than products.
+
+First, always name the model explicitly on every delegation. A CLI's configured
+default follows each new flagship release, so a delegation that omits the model
+flag silently promotes routine lookups to the most expensive tier the day a new
+model ships. Pinning the model is what keeps the routing decision in the rubric
+instead of in a config file that changes underneath it.
+
+Second, do not assume a new flagship arrives with a full tier family. A release
+may provide only a top-tier model, in which case it fills the Sol role alone and
+the cheaper tiers stay on the previous generation. Map tiers to what actually
+exists, one role at a time.
+
 The default rule is: choose the cheapest tier that can plausibly satisfy every
 acceptance criterion, not the cheapest tier that can produce a plausible answer.
 

@@ -12,7 +12,9 @@ codex exec -m gpt-5.6-luna -c model_reasoning_effort="low" "<mechanical subtask>
 
 - **Luna + low**: single-file lookups, git status/diff checks, mechanical one-file edits, run-a-command-and-report, "did the fix apply?" verification.
 - **Terra + medium** (default): feature implementation, multi-file edits, tests, ordinary debugging, exploration.
-- **Sol + high**: deep cross-subsystem root-cause, architecture-heavy work, large refactors, or a retry after Terra failed. `xhigh` only after Sol/high failed.
+- **Sol + high** (`gpt-6-astra`; fallback `gpt-5.6-sol`): deep cross-subsystem root-cause, architecture-heavy work, large refactors, or a retry after Terra failed. `xhigh` only after Sol/high failed.
+
+Always pass `-m` explicitly. The CLI's configured default moves to each new flagship, so an unpinned `codex exec` runs mechanical subtasks on the priciest tier. A new flagship may also ship without a full tier family — `gpt-6-astra` has no cheap or balanced sibling, so Luna and Terra stay on 5.6.
 
 ## The loop (every unit of work)
 
