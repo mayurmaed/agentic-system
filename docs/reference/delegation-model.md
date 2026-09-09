@@ -19,6 +19,8 @@ For every delegated unit:
 5. On failure, preserve the failure trail and escalate deliberately.
 6. Stop after the bounded retry sequence and one independent rescue.
 
+Before any of this runs, non-trivial or parallelizable delegated work is decomposed into a dependency task graph rather than handed out as one undifferentiated request. Independent branches become separate graph items the coordinator can dispatch concurrently; sequential dependencies become edges between them. Decomposition is itself part of the coordinator's job, done once up front, not something each executor works out on its own.
+
 The operator does not choose models for routine work.
 Routing is an implementation concern of the agent system.
 
@@ -32,6 +34,19 @@ Map each tier to the current model available in your installation.
 | Luna | `minimal` or `low` | Lookups, mechanical checks, one-command verification, narrow edits | Ambiguous behavior, cross-file design, security-sensitive reasoning |
 | Terra | `medium` | Normal implementation, tests, ordinary debugging, multi-file exploration | Problems already shown to exceed its reasoning depth |
 | Sol | `high` | Cross-subsystem diagnosis, architecture, concurrency, security, difficult correctness work | Routine work that Luna or Terra can verify cheaply |
+
+Two consequences follow from tiers being roles rather than products.
+
+First, always name the model explicitly on every delegation. A CLI's configured
+default follows each new flagship release, so a delegation that omits the model
+flag silently promotes routine lookups to the most expensive tier the day a new
+model ships. Pinning the model is what keeps the routing decision in the rubric
+instead of in a config file that changes underneath it.
+
+Second, do not assume a new flagship arrives with a full tier family. A release
+may provide only a top-tier model, in which case it fills the Sol role alone and
+the cheaper tiers stay on the previous generation. Map tiers to what actually
+exists, one role at a time.
 
 The default rule is: choose the cheapest tier that can plausibly satisfy every
 acceptance criterion, not the cheapest tier that can produce a plausible answer.
@@ -120,8 +135,10 @@ Every prompt should include:
 - Relevant context and interfaces.
 - Explicit in-scope and out-of-scope boundaries.
 - The deliverable and allowed write locations.
-- Observable acceptance criteria.
-- A self-check format requiring evidence for each criterion.
+
+State the write boundary explicitly, because it is the one place where delegation is legitimately incomplete. An executor confined to a workspace sandbox can read widely but write only inside its own working directory; a change it needs to make elsewhere will fail there no matter how the prompt is worded. Route that write to the coordinator's own track and keep everything around it delegated — the reads, the review, the verification. A single out-of-boundary write is not a reason to pull the whole unit of work back.
+
+Two fields are not optional polish; they are mandatory on every delegation, with no exception for a task that looks small: observable acceptance criteria, and a self-check format that requires the executor to return each criterion marked PASS or FAIL with real evidence — command output or file content, never asserted confidence. A prompt missing either field has not defined a bounded unit of work; it has issued a hope.
 
 ### Copy-pasteable prompt
 

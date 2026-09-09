@@ -33,14 +33,14 @@ Or invoke the `codex` skill for code review / consult modes.
 
 Claude decides the model and effort autonomously — never ask the user which model to use, and upgrade automatically on failure per the loop below. Every delegation must pick a model tier AND a reasoning effort — goal: cheapest combination that plausibly succeeds. Tiers: **Sol** = smartest/most expensive, **Terra** = balanced, **Luna** = cheapest. Request both in the delegation prompt as `--model <id> --effort <level>` — the `codex:rescue` wrapper passes both through to the Codex CLI (effort values: `none|minimal|low|medium|high|xhigh`).
 
-Prefer the latest version (5.6); drop to the 5.5/5.4 same-tier equivalent only if the 5.6 variant is unavailable or rate-limited.
+Prefer the latest model available at each tier, and drop to the same-tier predecessor only when it is unavailable or rate-limited. A new flagship does not always ship a full tier family: `gpt-6-astra` has no cheap/balanced siblings, so it takes the Sol slot alone while Luna and Terra stay on 5.6.
 
 Tier rubric:
 - **Luna + `--effort low`** (`gpt-5.6-luna`; fallback `gpt-5.4-mini` or `gpt-5.3-codex-spark`): single-file reads/lookups, git status/diff/log checks, mechanical one-file edits, running a command and reporting output, simple "did the fix apply?" verification. Use `--effort minimal` for pure lookups with no judgment.
 - **Terra + `--effort medium`** (`gpt-5.6-terra`; fallback `gpt-5.5`, then `gpt-5.4`) — default: standard feature implementation, multi-file edits, writing/fixing tests, ordinary debugging, codebase exploration and summarization.
-- **Sol + `--effort high`** (`gpt-5.6-sol`; fallback `gpt-5.5 --effort high`): deep root-cause investigation across subsystems, architecture-heavy implementation, large refactors, gnarly concurrency/security/correctness problems, or a retry after a Terra attempt failed. Reserve `xhigh` for a retry after Sol at `high` failed.
+- **Sol + `--effort high`** (`gpt-6-astra`; fallback `gpt-5.6-sol`, then `gpt-5.5 --effort high`): deep root-cause investigation across subsystems, architecture-heavy implementation, large refactors, gnarly concurrency/security/correctness problems, or a retry after a Terra attempt failed. Reserve `xhigh` for a retry after Sol at `high` failed.
 
-Escalate one step on failure (effort first, then tier) rather than starting at Sol. Omitting the flags uses the `~/.codex/config.toml` defaults (`gpt-5.6-terra`, medium effort).
+Escalate one step on failure (effort first, then tier) rather than starting at Sol. **Always pass `--model` explicitly.** Omitting it inherits whatever `~/.codex/config.toml` currently defaults to — and the CLI moves that default to each new flagship, so an unpinned delegation silently runs every routine lookup on the most expensive tier.
 
 Example: `Agent(subagent_type="codex:rescue", prompt="--model gpt-5.6-luna --effort low <task>")`
 

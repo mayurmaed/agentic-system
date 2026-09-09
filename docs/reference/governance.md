@@ -17,6 +17,8 @@ Governance is a routing layer, not a meeting process. Most reversible work proce
 | Code-host state | Proves branches, change requests, and merges | Code host | Query live before acting |
 | Capability gate | Prevents privileged actions | Credential scope or mechanical hook | Fail closed |
 
+Before changing a tracker item's status, read that project's actual workflow states rather than assuming a remembered or default sequence — a project-defined workflow always supersedes it. Every tracker item belongs under a parent epic or equivalent grouping; if none fits, propose one instead of leaving the item ungrouped.
+
 Use one decision file per project:
 
 ```text
@@ -24,6 +26,8 @@ Use one decision file per project:
 ```
 
 Both execution tracks must use the same file. A mirror, dashboard, tracker comment, or chat transcript may improve visibility, but none of them supersedes this record.
+
+When a wiki or knowledge-base integration is connected for the project, mirror new decision entries to it as they are logged. The local decision log stays canonical; if the mirror is unreachable, log locally and mirror on a later pass rather than letting the outage block the decision itself.
 
 ## Canonical file shape
 
@@ -206,6 +210,8 @@ Stop before the action, even when all quality gates are green, for:
 - new third-party dependencies unless project policy has already delegated that choice;
 - legal, compliance, customer-facing policy, or content sign-off;
 - manual third-party setup or any step requiring an operator-held credential.
+
+This list is deliberately a superset of the minimum hard stops named in the pipeline reference. A project may widen it, and several of these entries exist because one project widened it after an incident, but no project narrows it below that minimum.
 
 The approval must name the exact action. Approval to implement, test, open a change request, or deploy to a test environment does not imply permission to merge, promote, or change production.
 
@@ -391,7 +397,7 @@ A project follows this governance model when all of these are true:
 
 This model does not replace project-specific product ownership, security review, legal review, or incident response. It does not grant the agent merge, production, schema, destructive, purchasing, or runtime-infrastructure authority.
 
-It does not require an external tracker, hosted dashboard, or decision-log mirror. Those are optional views over the same canonical record and may fail without blocking delivery.
+The decision log stands on its own and does not require an external tracker, hosted dashboard, or mirror to function. But where a project is governed by a tracker, that requirement is not optional: every pull request references its tracker item. A hosted dashboard or decision-log mirror remains an optional view over the same canonical record, and may fail without blocking delivery.
 
 It does not turn every implementation detail into a committee decision. Reversible, in-scope choices already covered by the planner's contract and project conventions remain autonomous.
 

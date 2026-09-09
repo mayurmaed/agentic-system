@@ -14,7 +14,7 @@ The runner receives a repository location and a stable slug, resolves the remote
 |---|---|---|
 | Process isolation | Lock, process group, watchdog | Stable project slug |
 | Repository isolation | Dedicated clone, clean reset | Remote URL |
-| Delivery base | Reject default branch | Integration branch name |
+| Delivery base | Resolve a recorded integration branch, falling back through a conventional branch to the remote default | Integration branch name |
 | Authentication | One managed credential source | Repository authorization only |
 | Work selection | Resume, coverage, claim, idle rules | Tracker or backlog location |
 | Instructions | Generic unattended prompt | Optional scoped prompt |
@@ -119,24 +119,26 @@ Fail closed on any mismatch. Re-cloning the dedicated clone is cheaper than gues
 
 ## Integration branch policy
 
-Feature branches and pull requests target the configured integration branch. They never target the repository's default or production branch.
-
-Onboarding should fetch the code host's default branch and compare its name with the requested base. Reject equality even if the branch happens to be called something other than a conventional default name.
+Resolve the base to target in order: a base-branch value recorded by onboarding; otherwise a conventional integration branch on the remote, if one exists; otherwise the remote's default branch; otherwise a fixed fallback name. Feature branches and pull requests target whatever this resolution yields.
 
 ```bash
-test "$integration_branch" != "$default_branch" || {
-  echo "refusing autonomous work against the default branch" >&2
-  exit 1
-}
+integration_branch="$(cat "$state_dir/base-branch" 2>/dev/null)"
+if [ -z "$integration_branch" ]; then
+  integration_branch="$(remote_branch_named conventional-integration-name || remote_default_branch)"
+fi
+integration_branch="${integration_branch:-main}"
 ```
+
+There is no mechanical guard that rejects a resolved base equal to the default branch — the runner will happily target whatever this chain produces. Keeping automated work off the default branch is a property of onboarding recording a real integration branch and of prompt policy telling every lane never to target the default branch deliberately, not an enforced equality check. Treat a resolved base that equals the default branch as an onboarding misconfiguration to fix, not a condition the runner catches for you.
 
 Promotion from integration to production is a separate, human-authorized workflow. The runner does not merge its own pull requests and does not create a promotion request unless that exact action was explicitly authorized.
 
 ## Locking and time bounds
 
-Use one lock per project lane. An atomic directory creation works across ordinary scheduled shell invocations and makes ownership inspectable.
+Use one lock per project lane, keyed by the lane's stable slug, under a shared temporary directory rather than inside any project checkout. An atomic directory creation works across ordinary scheduled shell invocations and makes ownership inspectable; the lock directory holds a single PID file naming its owner.
 
 ```bash
+lock_dir="${TMPDIR:-/tmp}/autodev-$project_slug.lock"
 if ! mkdir "$lock_dir" 2>/dev/null; then
   echo "skip: another run owns $project_slug"
   exit 0
@@ -149,7 +151,7 @@ cleanup_lock() {
 trap cleanup_lock EXIT INT TERM HUP
 ```
 
-Do not delete a lock merely because its timestamp is old. A slow live process still owns it. Validate the recorded process identity; let the watchdog terminate the process group; remove a stale lock only when its owner is demonstrably gone.
+A live owner normally keeps its lock: validate the recorded process identity and prefer letting that run's own watchdog end it on schedule. But an in-process watchdog can itself fail to reap a hung child, so add a time-based backstop — once a lock has outlived the whole-run watchdog bound plus a fixed grace period (a few hundred seconds is enough headroom), reclaim it unconditionally. Send the recorded owning process a terminate signal, wait briefly, then force-kill it if it is still alive, and only then remove the lock. This reclaim fires regardless of whether the owning process still looks alive — age past that combined threshold is itself the trigger, not a liveness check.
 
 There are two timeout layers:
 
@@ -160,13 +162,17 @@ There are two timeout layers:
 
 The whole run must occupy its own process group so the watchdog stops children as well as the parent. Killing only the wrapper leaves compilers, agents, or credential helpers running and the next tick can overlap them.
 
-Choose the watchdog longer than the normal useful work window but shorter than the scheduler interval in which overlap becomes harmful. The reference implementation uses a bounded long-run watchdog; deployments may tune the duration, but must not remove the bound.
+Choose the watchdog longer than the normal useful work window but shorter than the scheduler interval in which overlap becomes harmful. The reference implementation defaults the whole-run bound to on the order of a hundred minutes, with a grace period on the order of fifteen seconds between the terminate signal and the kill signal; both are configuration, overridable per deployment, but neither should be removed. The lock's stale-reclaim threshold derives from the same watchdog bound plus its own fixed grace, so tightening the watchdog also tightens how long a truly stuck lane can block its own next tick.
+
+### Per-lane execution overrides
+
+A balanced capability tier at a high reasoning effort is the sane default for every scheduled tick — cost matters when a lane runs unattended dozens of times a day. A lane opts into the strongest tier only from its own schedule entry (an override read at that lane's invocation), never by changing the shared default; changing the default would silently move every lane onto the most expensive tier at once.
 
 ## Work selection and ticket coverage
 
 The tracker describes intent and eligibility. The code host is authoritative for existing branches, pull requests, merges, and published coverage.
 
-At the start of every tick, build a coverage set from open and recently merged pull requests. Extract stable work-item references from titles and bodies, not from branch names alone. A covered item is ineligible for new implementation.
+At the start of every tick, build a coverage set from open and recently merged pull requests. Extract stable work-item references from pull-request titles and head branch names — never from bodies, which are freehand prose and not a reliable place to parse a stable key — across both open and merged pull requests. Treat this code-host-derived set as authoritative over tracker status: branch naming varies run to run, but the reference itself is what makes an item identifiable regardless of who cut the branch or how they phrased the title. A covered item is ineligible for new implementation.
 
 ```text
 resolved decisions
@@ -179,6 +185,19 @@ resolved decisions
 Re-query coverage immediately before publishing. The interval between selection and push is a race: another lane may have opened a pull request after this lane selected the item.
 
 Claiming must be atomic in the system that owns claims. A tracker status change without a corresponding implementation state is not sufficient deduplication.
+
+### Tracker status discipline
+
+The code-host coverage check above is necessary but not sufficient: a tracker that a lane never updates is worse than no signal, because it looks trustworthy while being wrong. Apply both halves of this rule every tick:
+
+1. Before selecting an item, read its current tracker status. Skip anything in a post-implementation state — already reviewed, staged, or done — since re-running it produces duplicate work. Treat a blocked status as a stop, unless the blocking text names something this run can actually clear itself; a fork blocked on operator approval, credentials, or a policy call is not eligible no matter how implementable the change looks.
+2. Immediately after a pull request opens, transition the tracker item to a review-pending state and attach the pull-request URL, before the run does anything else. A pull request opened without that transition is an incomplete run, not a successful one — it reopens exactly the gap that makes status-based selection unreliable, and a later tick may rebuild the same item from scratch having no way to see it is already covered.
+
+If the tracker cannot be read this tick, say so explicitly in the run record and fall back to code-host coverage alone rather than silently assuming an item is eligible.
+
+### Migration handoff
+
+A run whose diff adds or modifies a database migration file is not complete when its pull request opens. Applying a migration to a live database is always the owner's manual step, never something the runner or its agent performs. Before the run finishes, it must park a pending-decision row naming the exact migration filename and the pull-request number, and repeat that filename verbatim in the run's final summary so it is visible without opening the pending-decision file directly.
 
 ### Pull-request validity
 
@@ -197,7 +216,19 @@ Idle is a valid successful outcome. When no eligible work remains, the runner sh
 
 Proposals belong in the configured tracker or backlog and in the pending-decision queue. They are not implementation-ready until their category and approval state allow selection.
 
-Quota exhaustion is also normally a quiet, resumable outcome. Log it, make no state mutation that requires cleanup, and let the next tick retry. Notifications should be reserved for events that need action.
+Quota exhaustion is the exception to that pattern. It is quiet in the sense that it needs no operator, but it is not stateless: a capped tick records an explicit, auditable transition that the next tick consults before it spends anything on the exhausted track, and that clears itself once the track recovers. Silent retry with no record is the wrong shape here — it makes every subsequent lane pay the same failed call before discovering the same thing. The next section describes that transition.
+
+## Fallback to a secondary execution track
+
+When the primary execution track exhausts its usage quota, falling back to a secondary track is automatic, not something that waits for a per-outage approval. A flag file is the single source of truth for which track is active, and it is the first thing every tick checks — when it is set, skip the doomed primary attempt entirely and run the secondary track directly. The flag is set the moment a tick observes the quota-exhausted condition, and cleared automatically once the primary track recovers. Recovery detection uses a cheap, short-timeout probe against the primary command-line tool rather than waiting for a human to notice and flip the flag back. An environment override lets a deployment opt out of the fallback entirely when that is the deliberate choice.
+
+The secondary track runs unattended, and therefore with elevated, non-interactive permissions — nothing pauses to ask. That is precisely why both ends of the transition are auditable: the flag records that the switch happened, and the recovery probe records when it ended. An unattended track that leaves no trace of when it was active is indistinguishable afterwards from one that never ran.
+
+This mechanism has one sharp edge worth naming: the probe call itself must use a reasoning-effort value the probe's own model accepts. One deployment's probe used an effort level its cheapest model rejected outright; the rejection's exit code was indistinguishable here from a genuine quota error, so every lane looked quota-capped and stayed pinned to the secondary track for days while the primary track was actually available the whole time. Log any probe failure that is not the literal quota-exhaustion signal as a distinct warning, so a probe regression like this is visible on the next run instead of silently costing more downtime.
+
+## Output freshness
+
+A run that dies early can leave a previous tick's result file untouched. Any downstream step that reads that file — archiving it, deciding whether a pull request awaits merge, deciding whether a lane is idle — must first check that the file's modification time is at or after this run's own start time. Skip interpreting it otherwise. Without this guard, a failed run silently re-reports the previous tick's outcome as if it were fresh, which both hides the failure and produces duplicate notifications for work that was already handled.
 
 ## Lane prompt skeleton
 
@@ -250,14 +281,26 @@ Capture raw executor output in a per-run file rather than holding it in shell va
 
 A watchdog or dashboard should identify a missed expected tick, a run exceeding its bound, repeated failures at the same stage, and a scheduler marker that disappeared. It should not infer success merely from a process exit; success requires the expected result record.
 
+## Companion health watchdog
+
+The runner itself has no view across lanes; a separate, shared health check fills that gap on its own schedule. It reads one lane manifest as the source of truth for which lanes should exist, their cadence, and their expected tick interval — never the live scheduler table, which can drift. Each pass it can safely repair:
+
+- a lane's scheduler entry that went missing, restored from the manifest;
+- a lane that has gone quiet past its expected interval, by spawning one catch-up run (the runner's own lock still serializes this against any tick that fires concurrently);
+- a lane that has produced no fresh output for a while even though it keeps ticking, which is flagged rather than repaired, since a lane doing something but never finishing needs a human look.
+
+Everything it cannot safely fix — repeated nonzero exits, a lock held far longer than expected, an unreachable dependency — it reports instead of guessing at a repair.
+
+The one lesson worth keeping visible: a watchdog that repairs something and reports success without checking that the repair actually took is worse than one that only reports. A scheduler write can fail silently in the same environment that runs the watchdog, so read the repaired state back before declaring it fixed, and downgrade the reported outcome when the read-back disagrees with what was just written.
+
 ## Failure modes and guards
 
 | Failure mode | What caused it | Guard |
 |---|---|---|
 | Project wrapper hangs forever | A lint command had no timeout | Bound commands and the whole process group |
-| Two ticks edit concurrently | Timestamp-based stale lock was removed early | Atomic lock plus verified process ownership |
+| Two ticks edit concurrently | Stale lock was removed while its owner was still working | Atomic lock plus verified process ownership; unconditional reclaim only past watchdog plus grace |
 | Dirty local files disappear | Runner used a developer checkout | Dedicated validated clone only |
-| Work lands on production | Base defaulted from repository metadata | Explicit integration base and equality rejection |
+| Work lands on production | Base resolution fell through to the default branch | Onboarding records a real integration branch; prompt policy forbids targeting the default |
 | Duplicate implementation | Lane trusted tracker status | Build coverage from code-host PRs before claim and publish |
 | Idle lane opens a tracker-only PR | Success was measured as “opened a PR” | Idle is success; require a meaningful diff |
 | Empty claim PR blocks work forever | Placeholder was treated as delivery | Bounded grace, close abandoned claim, clear coverage |
@@ -277,7 +320,7 @@ A watchdog or dashboard should identify a missed expected tick, a run exceeding 
 - [ ] Scheduler installation is backed up and read back.
 - [ ] The runner uses a dedicated clone whose identity is validated.
 - [ ] Every run fetches and resets to the remote integration tip.
-- [ ] The configured base cannot equal the default branch.
+- [ ] Onboarding records a real integration branch distinct from the default, since the runner will not reject the default branch on its own.
 - [ ] Destructive cleanup is scoped to the validated clone.
 - [ ] Locks are atomic and process ownership is checked.
 - [ ] Commands and whole runs have time bounds.

@@ -127,8 +127,11 @@ DECISIONS_SLUG="$(cat "$STATE/decisions-slug" 2>/dev/null || echo "$SLUG")"
 # the tag-triggered deploy's ledger-verify hard-failed.
 CTX="RUNNER-DRIVEN CONTEXT — Project slug: $SLUG. You are in an isolated clone at $CLONE, already clean on the base branch '$BASE' at origin's tip, with origin pointing at the project's GitHub remote. The runner holds the run lock and prepared this checkout, so SKIP the overlap-guard and sync steps entirely and do NOT create any lock file. Cut your feature branch from '$BASE'; commit and push, then open the PR with base='$BASE'. NEVER target 'main' and NEVER open a promote-to-main / release-to-main PR — promotion of '$BASE' to main is the owner's deliberate call; park any such task in the decision queue with a recommendation instead of doing it. Decision/work-log file: ~/.claude/decisions/$DECISIONS_SLUG.md. MIGRATION HANDOFF — MANDATORY: if this run's diff adds or modifies ANY database migration file (e.g. anything under supabase/migrations/ or the project's migration directory), the work is NOT complete when the PR opens. Applying migrations to live databases is the owner's manual step and you must NEVER apply one yourself. Before you finish, append a row to the '## Pending Decisions' table in the decision/work-log file above naming: the exact migration filename, the PR number, and that it must be (a) applied to the staging database, (b) applied to production at promotion time, and (c) recorded in the migration ledger table if the project keeps one — otherwise the tag-triggered deploy's ledger-verify step will hard-fail. State it as a required manual step, not a suggestion, and repeat the filename verbatim in your final run summary so it surfaces in the run archive."
 
-RUN_MODEL="gpt-5.6-terra"
-RUN_EFFORT="high"
+# The balanced tier stays the default tick model — every lane pays for this on every run.
+# Override per lane from its crontab line (AUTODEV_MODEL=<top-tier model>) when one project
+# genuinely needs the strongest tier; never raise it globally, and never fork the runner.
+RUN_MODEL="${AUTODEV_MODEL:-gpt-5.6-terra}"
+RUN_EFFORT="${AUTODEV_EFFORT:-high}"
 # Single epoch snapshot for this run, formatted two ways, so the log header and the archived
 # per-run message filename always correlate exactly (no drift between the two date calls).
 RUN_START_EPOCH=$(date +%s)
