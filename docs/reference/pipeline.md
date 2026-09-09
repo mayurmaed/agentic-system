@@ -31,6 +31,8 @@ The planner reads the original request and the relevant code before proposing wo
 It does not edit files.
 Its output is a contract against which development, testing, and both reviews are judged.
 
+Before this contract is executed, non-trivial or parallelizable work is broken into a dependency task graph rather than run as one undifferentiated block: independent branches of the work become separate graph items that can proceed concurrently, and sequential dependencies become edges between them. The planner's contract then attaches to whichever graph item is selected, so later stages are still judged against one contract even though the surrounding work may be running several items wide.
+
 The contract must contain:
 
 1. Every explicit requirement from the request.
@@ -204,6 +206,8 @@ Before publication, verify:
 - the pull request title and body reference the work item;
 - no owner-only action is being smuggled into publication.
 
+Where a tracker governs the project, the work item's key belongs at the start of the pull-request title and again in its body, so the tracker's own integration auto-links the two. Search the tracker for an existing item covering this change before opening a pull request with no key at all; if nothing fits, ask before creating a new tracker item rather than publishing untracked.
+
 Commit first, then write the exact-commit green marker:
 
 ```bash
@@ -212,14 +216,16 @@ git push -u origin <feature-branch>
 ```
 
 The first command is the canonical green-marker command shape.
-The repository's pre-push hook compares the marker content with the current HEAD and fails closed on mismatch.
+When the repository-local pre-push hook is installed, it compares the marker content with the current HEAD and fails closed on mismatch.
 Any new commit after marking invalidates the marker and requires the affected gates to run again.
 
-Install the repository-local mechanical gate with:
+The hook is optional to install, and the installer itself refuses to overwrite a foreign pre-push hook rather than silently replacing it. Install the repository-local mechanical gate with:
 
 ```bash
 scripts/install-git-prepush.sh <repo>
 ```
+
+Where it is not installed, the marker discipline above is still required practice; it is simply enforced by process rather than mechanically.
 
 The marker records that gates passed; it is not a substitute for running them.
 For a deliberate non-pipeline push, perform equivalent verification before writing the marker and record why the normal pipeline did not apply.
