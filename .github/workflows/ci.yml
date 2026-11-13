@@ -16,3 +16,15 @@ jobs:
         run: for f in $(find . -type f -name '*.sh' -not -path './.git/*' -print); do bash -n "$f"; done
       - name: Compile Python sources
         run: python3 -m py_compile $(find . -type f -name '*.py' -not -path './.git/*' -print)
+      # Parse-only: the Windows scripts run on Windows PowerShell 5.1, which a Linux runner lacks.
+      - name: PowerShell syntax check
+        shell: pwsh
+        run: |
+          $failed = $false
+          foreach ($f in Get-ChildItem -Recurse -Filter *.ps1 -File | Where-Object FullName -notmatch '[\\/]\.git[\\/]') {
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($f.FullName, [ref]$null, [ref]$errors) | Out-Null
+            if ($errors) { $failed = $true; $errors | ForEach-Object { "::error file=$($f.FullName)::$($_.Message)" } }
+            else { "ok  $($f.Name)" }
+          }
+          if ($failed) { exit 1 }

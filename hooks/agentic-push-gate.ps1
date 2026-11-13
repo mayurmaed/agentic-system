@@ -5,6 +5,8 @@ $ErrorActionPreference = 'Stop'
 function Block($msg) { [Console]::Error.WriteLine($msg); exit 2 }
 
 try {
+    # PS 5.1 decodes stdin in the legacy code page; a non-ASCII repo path would arrive mangled.
+    [Console]::InputEncoding = New-Object System.Text.UTF8Encoding($false)
     $raw = [Console]::In.ReadToEnd()
     if ([string]::IsNullOrWhiteSpace($raw)) { throw 'hook input missing/empty' }
     $data = $raw | ConvertFrom-Json
