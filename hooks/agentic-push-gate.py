@@ -23,7 +23,7 @@ except Exception as e:
     sys.exit(0)
 
 # git ... push at a command position (line start or after ; & |), not inside a quoted string
-m = re.search(r'(?:^|[;&|\n]\s*)(git\b[^;&|\n]*?\bpush\b[^;&|\n]*)', cmd)
+m = re.search(r'(?:^|[;&|\n]\s*)(git\b[^;&|\n]*?(?<![\w./-])push(?![\w./-])[^;&|\n]*)', cmd)
 if not m:
     print("NOPUSH")
     sys.exit(0)
