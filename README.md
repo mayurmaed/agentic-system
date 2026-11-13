@@ -275,3 +275,15 @@ Run `./uninstall.sh` to reverse both installers automatically — it removes the
   - **Both** (recommended) — Claude Code with the Codex plugin (`codex:rescue` agent) and Codex CLI ≥ 0.144 (for the 5.6 model tiers). Delegation and opposite-track code review both available.
   - **Claude only** — run `./install.sh`. The Claude track carries all execution; delegation falls back to Claude tiers (Haiku/Sonnet/Opus).
   - **Codex only** — run `./install-codex.sh`. See [Codex-only setup](#codex-only-setup-no-claude-at-all-or-claude-tokens-exhausted). The mechanical push gate is the tool-agnostic git `pre-push` hook (also covers manual and cron pushes); Codex's own `PreToolUse` hook can add an earlier layer but isn't required.
+
+### Windows (native, no Python)
+
+The Claude track runs natively on Windows 10/11 with only Windows PowerShell 5.1 (built in), Git for Windows, `gh`, and Claude Code. No Python, WSL, or bash script is needed:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\windows\install.ps1
+```
+
+It installs the same agents, commands, rules, and `CLAUDE.md` block as `install.sh`, but registers PowerShell ports of the hooks (`hooks/agentic-push-gate.ps1`, `hooks/agentic-pending-decisions.ps1`). It is idempotent, keeps your existing `settings.json` entries, and backs up overwritten files as `*.bak.<ts>`. Pass `-Yes` to skip the prompt or `-ClaudeDir <path>` to target another config directory.
+
+Not covered on Windows: the scheduled `/autodev` runner (`onboard-autodev.sh` needs cron and macOS tools). Run `/autodev` by hand or from a Windows scheduled task instead. The optional per-repo git `pre-push` hook (`scripts/install-git-prepush.sh`) works as-is from Git Bash, because Git for Windows runs hooks with its bundled shell.
