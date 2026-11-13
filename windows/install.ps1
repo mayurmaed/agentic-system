@@ -52,7 +52,7 @@ if (Test-Path (Join-Path $Repo 'claude/rules')) {
 
 # Merge hook registrations into settings.json (idempotent, backed up).
 $settingsPath = Join-Path $ClaudeDir 'settings.json'
-$settings = if (Test-Path $settingsPath) { Get-Content $settingsPath -Raw | ConvertFrom-Json } else { [pscustomobject]@{} }
+$settings = if (Test-Path $settingsPath) { [IO.File]::ReadAllText($settingsPath) | ConvertFrom-Json } else { [pscustomobject]@{} }
 if (-not $settings.PSObject.Properties['hooks']) { $settings | Add-Member -NotePropertyName hooks -NotePropertyValue ([pscustomobject]@{}) }
 
 function Register-Hook($event, $matcher, $scriptName) {
@@ -77,7 +77,7 @@ Write-Host 'Hooks registered in settings.json (backup: settings.json.bak)'
 
 # CLAUDE.md marked block.
 $target = Join-Path $ClaudeDir 'CLAUDE.md'
-$block  = (Get-Content (Join-Path $Repo 'claude/CLAUDE.agentic.md') -Raw).TrimEnd("`r", "`n")
+$block  = [IO.File]::ReadAllText((Join-Path $Repo 'claude/CLAUDE.agentic.md')).TrimEnd("`r", "`n")
 if (-not (Test-Path $target)) { New-Item -ItemType File -Path $target | Out-Null }
 Copy-Item $target "$target.bak.$Ts"
 $text = [IO.File]::ReadAllText($target)
